@@ -6,6 +6,21 @@ import torch
 import torch.nn as nn
 import torch.optim as optim
 from dgl.nn.pytorch import GraphConv
+import torch
+from torch.utils.tensorboard import SummaryWriter
+from tensorboardX import SummaryWriter
+
+# Tensorboard
+# log_dir = "C:/Users/charv/Desktop/Charvi/Sem7/IBAB/Geneformer/logs"
+# writer = SummaryWriter(log_dir=log_dir)
+
+if torch.cuda.is_available():
+    print("GPU is available")
+    device = torch.device("cuda")
+else:
+    print("GPU is not available")
+    device = torch.device("cpu")
+
 
 # Load your data
 X = pd.read_csv("X.csv")
@@ -44,6 +59,7 @@ print("Finished Graph construction")
 
 # Convert the networkx graph to a DGL graph
 dgl_G = dgl.from_networkx(G)
+dgl_G = dgl_G.to(device)
 
 # Separate the node types
 cell_nodes = cell_ids
@@ -53,9 +69,11 @@ y_nodes = y_columns
 # Get the edges and their weights
 edges = dgl_G.edges()
 print(len(edges[1]))
-edge_weights = torch.tensor([d['weight'] for u, v, d in G.edges(data=True)])
-
-print(edge_weights.shape)
+print(edges[1])
+# edge_weights = torch.tensor([d['weight'] for u, v, d in G.edges(data=True)])
+edge_weights = edges[1]
+# edge_weights = dgl_G.edata['weight']
+print(edge_weights)
 num_edges = dgl_G.number_of_edges()
 
 print(num_edges)
@@ -77,7 +95,7 @@ class GNNModel(nn.Module):
 
         return edge_preds
 
-dgl_G = dgl.add_self_loop(dgl_G)
+
 
 x = len(x_nodes) + len(cell_nodes)
 # Initialize the GNN model
@@ -86,17 +104,28 @@ hidden_size = 64
 out_features = len(y_nodes)
 num_cell_nodes = len(cell_nodes)
 gnn_model = GNNModel(x, hidden_size, out_features)
+gnn_model.to(device)
+
+
+
 
 # Initialize node feature tensors for x_nodes and y_nodes
 x_features = torch.rand(in_features, x)
 y_features = torch.rand(out_features, x)
 cell_features = torch.randn(num_cell_nodes, x)
 
+x_features = x_features.to(device)
+y_features = y_features.to(device)
+cell_features = cell_features.to(device)
+edge_weights = edge_weights.to(device)
+
 print(x_features.shape)
 print(y_features.shape)
 print(cell_features.shape)
 # Assign node features to the DGL graph
 dgl_G.ndata['feat'] = torch.cat([x_features, y_features, cell_features], dim=0)
+dgl_G.ndata['feat'] = torch.cat([x_features, y_features, cell_features], dim=0).to(device)
+dgl_G = dgl.add_self_loop(dgl_G)
 
 print("Initialized Features")
 # Define the loss function and optimizer
@@ -104,6 +133,7 @@ criterion = nn.MSELoss()
 optimizer = optim.Adam(gnn_model.parameters(), lr=0.01)
 
 print("Start Training")
+global_step = 0
 # Training loop
 for epoch in range(10):
     gnn_model.train()
@@ -113,6 +143,19 @@ for epoch in range(10):
     loss.backward()
     optimizer.step()
     print(f'Epoch [{epoch+1}/10], Loss: {loss.item():.4f}')
+
+    if (epoch + 1) % 1 == 0:  # You can adjust the frequency of printing
+        print("Model Weights:")
+        for name, param in gnn_model.state_dict().items():
+            if 'weight' in name:  # Check if the parameter is a weight tensor
+                print(name, param)
+
+    # TensorBoard
+    # writer.add_scalar('Loss/train', loss.item(), global_step)
+    # writer.add_histogram('Weights/layer1', gnn_model.conv1.weight, global_step)
+    # writer.add_scalar('Accuracy/train', accuracy, global_step)
+
+    global_step += 1  # Increment global step for each iteration
 
 # Get predictions for the y node weights
 gnn_model.eval()
