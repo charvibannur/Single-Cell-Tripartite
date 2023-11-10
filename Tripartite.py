@@ -59,6 +59,7 @@ print("Finished Graph construction")
 
 # Convert the networkx graph to a DGL graph
 dgl_G = dgl.from_networkx(G)
+dgl_G = dgl.add_self_loop(dgl_G)
 dgl_G = dgl_G.to(device)
 
 # Separate the node types
@@ -75,6 +76,7 @@ edge_weights = edges[1]
 # edge_weights = dgl_G.edata['weight']
 print(edge_weights)
 num_edges = dgl_G.number_of_edges()
+
 
 print(num_edges)
 print("Starting Model")
@@ -155,7 +157,7 @@ for epoch in range(10):
     # writer.add_histogram('Weights/layer1', gnn_model.conv1.weight, global_step)
     # writer.add_scalar('Accuracy/train', accuracy, global_step)
 
-    global_step += 1  # Increment global step for each iteration
+    # global_step += 1  # Increment global step for each iteration
 
 # Get predictions for the y node weights
 gnn_model.eval()
